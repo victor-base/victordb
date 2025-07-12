@@ -10,7 +10,7 @@ typedef struct {
     uint64_t id;
     char     *name;
     Index    *index;
-    kvTable  *table;
+    KVTable  *table;
     int op_add_counter;
     int op_del_counter;
 } IndexKV;

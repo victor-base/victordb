@@ -68,12 +68,23 @@ int main(int argn, char *argv[]) {
         return -1;
     }
 
+    if (access(INDEX_FILE, F_OK) == 0) {
+        if ((ret = import(core.index, INDEX_FILE, IMPORT_OVERWITE)) != SUCCESS) {
+            destroy_index(&core.index);
+            log_message(LOG_ERROR, 
+                "importing index: %s", index_strerror(ret)
+            );
+            return -1;
+        }
+    }
+
     errno = 0;
-    core.table = alloc_kvtable(core.name);
+    core.table = access(TABLE_FILE, F_OK) == 0 ?
+        load_kvtable(TABLE_FILE) : alloc_kvtable(core.name);
     if (core.table == NULL) {
         destroy_index(&core.index);
         log_message(LOG_ERROR,
-            "alloc table memory: %s", strerror(errno)
+            "alloc or load table: %s", strerror(errno)
         );
         return -1;
     }
