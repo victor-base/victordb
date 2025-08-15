@@ -1,23 +1,42 @@
-# Makefile for IndexKV daemon with pkg-config
+# Makefile for VictorDB servers with pkg-config
 
 CC = gcc
 CFLAGS = -Wall -Wextra -O2 -g $(shell pkg-config --cflags libcbor)
-LDFLAGS = $(shell pkg-config --libs libcbor) -lvictor
+LDFLAGS = $(shell pkg-config --libs libcbor) -L/usr/local/lib/ -lvictor
 
-SRCS = buffer.c fileutils.c log.c main.c opt.c protocol.c server.c socket.c
-OBJS = $(SRCS:.c=.o)
-TARGET = victor
+# Common source files
+COMMON_SRCS = buffer.c fileutils.c log.c opt.c protocol.c socket.c server.c
+COMMON_OBJS = $(COMMON_SRCS:.c=.o)
 
-.PHONY: all clean
+# Vector index server specific sources
+INDEX_SRCS = $(COMMON_SRCS) index_main.c viproto.c index_server.c
+INDEX_OBJS = $(INDEX_SRCS:.c=.o)
 
-all: $(TARGET)
+# Table (key-value) server specific sources  
+TABLE_SRCS = $(COMMON_SRCS) table_main.c kvproto.c table_server.c
+TABLE_OBJS = $(TABLE_SRCS:.c=.o)
 
-$(TARGET): $(OBJS)
+# Targets
+INDEX_TARGET = victor_index
+TABLE_TARGET = victor_table
+
+.PHONY: all clean index table
+
+all: $(INDEX_TARGET) $(TABLE_TARGET)
+
+index: $(INDEX_TARGET)
+
+table: $(TABLE_TARGET)
+
+$(INDEX_TARGET): $(INDEX_OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+$(TABLE_TARGET): $(TABLE_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(INDEX_OBJS) $(TABLE_OBJS) $(INDEX_TARGET) $(TABLE_TARGET)
 
