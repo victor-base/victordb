@@ -32,7 +32,7 @@ static char __default_socket_path[PATH_MAX] = {0};
  */
 static char *set_default_socket_path(const char *root, const char *name) {
     snprintf(__default_socket_path, PATH_MAX, "%s/%s/socket.unix", 
-             root == NULL ? DB_ROOT : root, name);
+             root == NULL ? get_db_root() : root, name);
     return __default_socket_path;
 }
 

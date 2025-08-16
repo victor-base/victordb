@@ -2,13 +2,22 @@
  * @file index_main.c
  * @brief Entry point for the VictorDB vector index server.
  *
- * This file contains the main function that initializes the VictorDB vector index server,
+ * This file contains the main function that initia    log_message(LOG_INFO, "VictorDB Index Server started successfully!");
+    log_message(LOG_INFO, "Socket: %s", cfg.socket.unix);
+    log_message(LOG_INFO, "Database root: %s", get_db_root());
+    log_message(LOG_INFO, "Export threshold: %d operations", get_export_threshold());
+    log_message(LOG_INFO, "Index: %s (%d dimensions)", 
+                (cfg.i_type == HNSW_INDEX) ? "HNSW" : "FLAT", cfg.i_dims);
+    uint64_t sz;
+    size(core.index, &sz);
+    log_message(LOG_INFO, "Vectors loaded: %" PRIu64, sz);he VictorDB vector index server,
  * loads configuration, imports existing data, and starts the server loop.
  */
 
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include <inttypes.h>
 #include "fileutils.h"
 #include "socket.h"
 #include "index_server.h"
@@ -54,7 +63,7 @@ int main(int argc, char *argv[]) {
     int server, ret;
 
     if (argc == 1) {
-        fprintf(stderr, "missing arguments\n");
+        fprintf(stderr, "Error: Missing configuration arguments\n");
         index_usage(argv[0]);  // Fixed: was usage() instead of index_usage()
         return -1;
     }
@@ -68,7 +77,7 @@ int main(int argc, char *argv[]) {
     errno = 0;
     if (set_database_cwd(cfg.name) == -1) {
         log_message(LOG_ERROR, 
-            "setting cwd (%s): %s", get_database_cwd(), strerror(errno)
+            "Failed to access database directory (%s): %s", get_database_cwd(), strerror(errno)
         );
         return -1;
     }
@@ -82,34 +91,37 @@ int main(int argc, char *argv[]) {
     ret = safe_alloc_index(&core.index, cfg.i_type, cfg.i_method, cfg.i_dims, NULL);
     if (ret != SUCCESS) {
         log_message(LOG_ERROR, 
-            "alloc index memory: %s", index_strerror(ret)
+            "Failed to initialize vector index: %s", index_strerror(ret)
         );
         return -1;
     }
+    
+    log_message(LOG_INFO, "Vector index initialized successfully");
 
     // Import existing index file if present
     if (access(INDEX_FILE, F_OK) == 0) {
+        log_message(LOG_INFO, "Loading existing vector index...");
         if ((ret = import(core.index, INDEX_FILE, IMPORT_OVERWITE)) != SUCCESS) {
             destroy_index(&core.index);
             log_message(LOG_ERROR, 
-                "importing index: %s", index_strerror(ret)
+                "Failed to load vector index: %s", index_strerror(ret)
             );
             return -1;
-        }
+        } 
+        log_message(LOG_INFO, "Vector index loaded successfully");
     }
 
-    // Replay WAL file if present to restore recent changes
-    if (access(IWAL_FILE, F_OK) == 0) {  // Fixed: was WAL_FILE instead of IWAL_FILE
-        log_message(LOG_INFO, "importing WAL file");
-        FILE *wal = fopen(IWAL_FILE, "rb");  // Fixed: was WAL_FILE instead of IWAL_FILE
+    if (access(IWAL_FILE, F_OK) == 0) {
+        log_message(LOG_INFO, "Loading transaction log...");
+        FILE *wal = fopen(IWAL_FILE, "rb");
         if (wal == NULL) {
             log_message(LOG_ERROR, 
-                "open WAL (%s): %s", IWAL_FILE, strerror(errno)  // Fixed: was WAL_FILE
+                "Failed to open transaction log (%s): %s", IWAL_FILE, strerror(errno)
             );
             destroy_index(&core.index);
             return -1;
         }
-        if (victor_index_loadwal(&core, wal) != 0) {  // Fixed: was vector_index_loadwal()
+        if (victor_index_loadwal(&core, wal) != 0) { 
             fclose(wal);
             destroy_index(&core.index);
             return -1;
@@ -117,7 +129,6 @@ int main(int argc, char *argv[]) {
         fclose(wal);
     }
 
-    // Register signal handlers for graceful shutdown
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_signal;
     sigemptyset(&sa.sa_mask);
@@ -129,15 +140,28 @@ int main(int argc, char *argv[]) {
     server = unix_server(cfg.socket.unix);
     if (server == -1) {
         log_message(LOG_ERROR, 
-            "creating unix server: %s", strerror(errno)
+            "Failed to create UNIX socket server: %s", strerror(errno)
         );
         destroy_index(&core.index);
         return -1;
     }
 
+    log_message(LOG_INFO, "VictorDB Index Server started successfully!");
+    log_message(LOG_INFO, "Socket: %s", cfg.socket.unix);
+    log_message(LOG_INFO, "Index: %s (%d dimensions)", 
+                (cfg.i_type == HNSW_INDEX) ? "HNSW" : "FLAT", cfg.i_dims);
+    log_message(LOG_INFO, "Database root: %s", get_database_cwd());
+    log_message(LOG_INFO, "Export threshold: %d operations", get_export_threshold());
+    uint64_t sz;
+    size(core.index, &sz);
+    log_message(LOG_INFO, "Vectors loaded: %" PRIu64, sz);
+    log_message(LOG_INFO, "Vector Index ready for operations");
+
     // Start main server loop
-    ret = victor_index_server(&core, server);  // Fixed: was vector_index_server()
+    ret = victor_index_server(&core, server); 
     close(server);
+    if (cfg.s_type == SOCKET_UNIX)
+        unlink(cfg.socket.unix);
     destroy_index(&core.index);
     return ret;
 }

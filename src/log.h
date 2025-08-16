@@ -7,6 +7,7 @@
 
 #define LOG_WARNING "WARNING"
 #define LOG_ERROR   "ERROR"
+#define LOG_START   "START"
 #define LOG_INFO    "INFO"
 
 extern void log_message(const char *level, const char *fmt, ...);

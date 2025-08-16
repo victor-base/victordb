@@ -28,8 +28,18 @@
 /** @brief Write-Ahead Log file for table operations */
 #define TWAL_FILE   "db.twal"
 
-/** @brief Root directory for all database instances */
-#define DB_ROOT     "/var/lib/victord"
+/** @brief Default root directory for all database instances */
+#define DEFAULT_DB_ROOT "/var/lib/victord"
+
+/**
+ * @brief Gets the database root directory from environment or default value.
+ * 
+ * Reads the VICTOR_DB_ROOT environment variable.
+ * If not set, returns DEFAULT_DB_ROOT.
+ * 
+ * @return Database root directory path
+ */
+extern const char *get_db_root(void);
 
 /**
  * @brief Sets the current working directory for database operations.

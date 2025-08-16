@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static char __database_path[PATH_MAX] = {0};
 
@@ -26,8 +27,13 @@ const char *get_database_cwd(void) {
     return __database_path;
 }
 
+const char *get_db_root(void) {
+    const char *env_root = getenv("VICTOR_DB_ROOT");
+    return env_root ? env_root : DEFAULT_DB_ROOT;
+}
+
 int set_database_cwd(const char *name) {
-    snprintf(__database_path, PATH_MAX, "%s/%s", DB_ROOT, name);
+    snprintf(__database_path, PATH_MAX, "%s/%s", get_db_root(), name);
     if (ensure_db_dir(__database_path) == 0)
         return chdir(__database_path);
     return -1;

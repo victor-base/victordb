@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include <inttypes.h>
 #include "fileutils.h"
 #include "socket.h"
 #include "table_server.h"
@@ -53,7 +54,7 @@ int main(int argc, char *argv[]) {
     int server, ret;
 
     if (argc == 1) {
-        fprintf(stderr, "missing arguments\n");
+        fprintf(stderr, "Error: Missing configuration arguments\n");
         table_usage(argv[0]);  // Fixed: was usage() instead of table_usage()
         return -1;
     }
@@ -67,7 +68,7 @@ int main(int argc, char *argv[]) {
     errno = 0;
     if (set_database_cwd(cfg.name) == -1) {
         log_message(LOG_ERROR, 
-            "setting cwd (%s): %s", get_database_cwd(), strerror(errno)
+            "Failed to access database directory (%s): %s", get_database_cwd(), strerror(errno)
         );
         return -1;
     }
@@ -79,25 +80,29 @@ int main(int argc, char *argv[]) {
 
     // Import existing table file if present
     if (access(TABLE_FILE, F_OK) == 0) {
+        log_message(LOG_INFO, "Loading existing key-value table...");
         core.table = load_kvtable(TABLE_FILE);
     } else {
+        log_message(LOG_INFO, "Creating new key-value table...");
         core.table = alloc_kvtable(cfg.name);
     }
 
     if (!core.table) {
         log_message(LOG_ERROR, 
-            "alloc table memory"
+            "Failed to allocate table memory"
         );
         return -1;
     }
+    
+    log_message(LOG_INFO, "Key-value table initialized successfully");
 
     // Replay WAL file if present to restore recent changes
     if (access(TWAL_FILE, F_OK) == 0) {
-        log_message(LOG_INFO, "importing WAL file");
+        log_message(LOG_INFO, "Loading transaction log...");
         FILE *wal = fopen(TWAL_FILE, "rb");
         if (wal == NULL) {
             log_message(LOG_ERROR, 
-                "open WAL (%s): %s", TWAL_FILE, strerror(errno)
+                "Failed to open transaction log (%s): %s", TWAL_FILE, strerror(errno)
             );
             destroy_kvtable(&core.table);
             return -1;
@@ -122,15 +127,27 @@ int main(int argc, char *argv[]) {
     server = unix_server(cfg.socket.unix);
     if (server == -1) {
         log_message(LOG_ERROR, 
-            "creating unix server: %s", strerror(errno)
+            "Failed to create UNIX socket server: %s", strerror(errno)
         );
         destroy_kvtable(&core.table);
         return -1;
     }
 
+    log_message(LOG_INFO, "VictorDB Table Server started successfully!");
+    log_message(LOG_INFO, "Socket: %s", cfg.socket.unix);
+    log_message(LOG_INFO, "Database root: %s", get_database_cwd());
+    log_message(LOG_INFO, "Export threshold: %d operations", get_export_threshold());
+    
+    uint64_t sz;
+    kv_size(core.table, &sz);
+    log_message(LOG_INFO, "Elements loaded: %" PRIu64, sz);
+    log_message(LOG_INFO, "Key-value table ready for operations");
+
     // Start main server loop
     ret = victor_table_server(&core, server);
     close(server);
+    if (cfg.s_type == SOCKET_UNIX)
+        unlink(cfg.socket.unix);
     destroy_kvtable(&core.table);
     return ret;
 }

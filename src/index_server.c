@@ -15,7 +15,11 @@
  * @brief Handles a delete (vector and value removal) message.
  *
  * This function processes an incoming `MSG_DELETE` message, parses the ID of the item
- * to delete, and attempts to remove both the vector from the index and the value 
+ * to delete, an        }
+        if (core->op_add_counter + core->op_del_counter > get_export_threshold()) {
+            int ret;
+            log_message(LOG_INFO, "Exporting index to disk (operations: %d)", 
+                       core->op_add_counter + core->op_del_counter);empts to remove both the vector from the index and the value 
  * from the key-value store.
  *
  * Workflow:
@@ -262,16 +266,22 @@ int victor_index_loadwal(VictorIndex *core, FILE *wal) {
     free(buff);
 
     if (ret == 0) {
-        log_message(LOG_INFO, 
-            "%d entries from WAL imported successfully, %d with error", 
-            successful_entries, failed_entries);
+        if (failed_entries == 0) {
+            log_message(LOG_INFO, 
+                "Transaction log recovered: %d operations restored successfully", 
+                successful_entries);
+        } else {
+            log_message(LOG_WARNING, 
+                "Transaction log recovered: %d successful, %d failed operations", 
+                successful_entries, failed_entries);
+        }
         return 0;
     }
 
     if (errno == 0)
-        log_message(LOG_ERROR, "WAL corruption detected during import");
+        log_message(LOG_ERROR, "Transaction log corrupted - data integrity compromised");
     else
-        log_message(LOG_ERROR, "I/O error during WAL import: %s", strerror(errno));
+        log_message(LOG_ERROR, "Transaction log read error: %s", strerror(errno));
 
     return -1;
 }
@@ -420,13 +430,15 @@ int victor_index_server(VictorIndex *core, int server) {
                 }
             }
         }
-        if (core->op_add_counter + core->op_del_counter > EXPORT_THRESHOLD) {
+        if (core->op_add_counter + core->op_del_counter > get_export_threshold()) {
             int ret;
-            
+            log_message(LOG_INFO, "Exporting index to disk (operations: %d)", 
+                       core->op_add_counter + core->op_del_counter);
             if ((ret = export(core->index, INDEX_FILE)) != SUCCESS)
                 log_message(LOG_WARNING, 
-                    "during index export: %s", index_strerror(ret));
+                    "Error during index export: %s", index_strerror(ret));
             else {
+                log_message(LOG_INFO, "Index exported successfully, WAL file cleared");
                 unlink(IWAL_FILE);
                 core->op_add_counter = core->op_del_counter = 0;
             }

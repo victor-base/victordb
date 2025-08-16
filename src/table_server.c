@@ -17,7 +17,11 @@
 /**
  * @brief Handles a DEL (key deletion) message.
  *
- * This function processes an incoming `MSG_DEL` message, parses the key to delete,
+ * This function proces        }
+        if (core->op_add_counter + core->op_del_counter > get_export_threshold()) {
+            int ret;
+            log_message(LOG_INFO, "Exporting table to disk (operations: %d)", 
+                       core->op_add_counter + core->op_del_counter);n incoming `MSG_DEL` message, parses the key to delete,
  * and attempts to remove it from the key-value store.
  *
  * Workflow:
@@ -38,13 +42,13 @@ static int handle_del_message(VictorTable *core, buffer_t *msg, FILE *wal) {
     int ret;
 
     if (buffer_read_del(msg, &key, &klen) == -1) {
-        log_message(LOG_ERROR, "parsing del message");
+        log_message(LOG_ERROR, "Failed to parse DELETE message");
         return -1;
     }
         
     if ((ret = kv_del(core->table, key, (int)klen)) != KV_SUCCESS) {
         log_message(LOG_ERROR, 
-            "unable to delete key - table: %s",
+            "Unable to delete key from table: %s",
             table_strerror(ret)
         );
     } else {
@@ -89,14 +93,14 @@ static int handle_put_message(VictorTable *core, buffer_t *msg, FILE *wal) {
 
     ret = buffer_read_put(msg, &key, &klen, &val, &vlen); 
     if (ret == -1) {
-        log_message(LOG_ERROR, "parsing put message");
+        log_message(LOG_ERROR, "Failed to parse PUT message");
         return -1;
     }
 
     if ((ret = kv_put(core->table, key, (int)klen, val, (int)vlen)) != KV_SUCCESS) {
         if (ret == SYSTEM_ERROR)
             log_message(LOG_ERROR, 
-                "at key-value insert - code: %d - message: %s", 
+                "System error during key-value insert - code: %d - message: %s", 
                 ret, table_strerror(ret)
             );
         else
@@ -149,7 +153,7 @@ static int handle_get_message(VictorTable *core, buffer_t *msg) {
     int ret;
 
     if (buffer_read_get(msg, &key, &klen) == -1) {
-        log_message(LOG_ERROR, "parsing get message");
+        log_message(LOG_ERROR, "Failed to parse GET message");
         return -1;
     }
 
@@ -194,7 +198,7 @@ int victor_table_loadwal(VictorTable *core, FILE *wal) {
     int ret;
 
     if (!buff) {
-        log_message(LOG_ERROR, "failed to allocate buffer");
+        log_message(LOG_ERROR, "Failed to allocate buffer for WAL processing");
         return -1;
     }
 
@@ -226,7 +230,7 @@ int victor_table_loadwal(VictorTable *core, FILE *wal) {
 
     if (ret == 0) {
         log_message(LOG_INFO, 
-            "%d entries from WAL imported successfully, %d with error", 
+            "WAL import completed: %d entries loaded successfully, %d with errors", 
             successful_entries, failed_entries);
         return 0;
     }
@@ -383,13 +387,15 @@ int victor_table_server(VictorTable *core, int server) {
                 }
             }
         }
-        if (core->op_add_counter + core->op_del_counter > EXPORT_THRESHOLD) {
+        if (core->op_add_counter + core->op_del_counter > get_export_threshold()) {
             int ret;
-            
+            log_message(LOG_INFO, "Exporting table to disk (operations: %d)", 
+                       core->op_add_counter + core->op_del_counter);
             if ((ret = kv_dump(core->table, TABLE_FILE)) != KV_SUCCESS)
                 log_message(LOG_WARNING, 
-                    "during table export: %s", table_strerror(ret));
+                    "Error during table export: %s", table_strerror(ret));
             else {
+                log_message(LOG_INFO, "Table exported successfully, WAL file cleared");
                 unlink(TWAL_FILE);
                 core->op_add_counter = core->op_del_counter = 0;
             }

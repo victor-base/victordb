@@ -24,8 +24,8 @@
 typedef struct {
     char     *name;           /**< Table name identifier */
     KVTable  *table;          /**< Pointer to the key-value table */
-    uint64_t op_add_counter;  /**< Counter for PUT operations */
-    uint64_t op_del_counter;  /**< Counter for DELETE operations */
+    int op_add_counter;  /**< Counter for PUT operations */
+    int op_del_counter;  /**< Counter for DELETE operations */
 } VictorTable;
 
 
