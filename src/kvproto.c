@@ -19,9 +19,10 @@
  * This function handles PUT and DEL operations by encoding different CBOR arrays:
  * - PUT: [key, value] 
  * - DEL: [key]
+ * - GET_RESULT: [value]
  *
  * @param buf Output buffer where the CBOR message will be written
- * @param msg_type Message type (MSG_PUT, MSG_DEL, etc.)
+ * @param msg_type Message type (MSG_PUT, MSG_DEL, MSG_GET_RESULT, etc.)
  * @param key Pointer to the key data
  * @param klen Length of the key
  * @param val Pointer to the value data (can be NULL for DEL operations)
@@ -29,19 +30,41 @@
  * @return 0 on success, -1 on error
  */
 static int buffer_write_kv_master(buffer_t *buf, int msg_type, void *key, size_t klen, void *val, size_t vlen) {
-    int array_size = val ? 2 : 1;  // PUT has 2 elements, DEL has 1
-    cbor_item_t *root = cbor_new_definite_array(array_size);
+    cbor_item_t *root;
+    cbor_item_t *item;
     
-    // Add key
-    cbor_item_t *key_item = cbor_build_bytestring(key, klen);
-    (void)cbor_array_push(root, key_item);
-    cbor_decref(&key_item);
-    
-    // Add value if present (for PUT operations)
-    if (val) {
-        cbor_item_t *val_item = cbor_build_bytestring(val, vlen);
-        (void)cbor_array_push(root, val_item);
-        cbor_decref(&val_item);
+    // For GET_RESULT, we only send the value (not key-value pair)
+    if (msg_type == MSG_GET_RESULT) {
+        root = cbor_new_definite_array(1);
+        if (val && vlen > 0) {
+            item = cbor_build_bytestring(val, vlen);
+        } else {
+            // Send empty byte string for NULL value
+            item = cbor_build_bytestring((const unsigned char *)"", 0);
+        }
+        (void)cbor_array_push(root, item);
+        cbor_decref(&item);
+    } else {
+        // For PUT and DEL operations
+        int array_size = val ? 2 : 1;  // PUT has 2 elements, DEL has 1
+        root = cbor_new_definite_array(array_size);
+        
+        // Add key (must not be NULL for PUT/DEL)
+        if (!key) {
+            cbor_decref(&root);
+            return -1;
+        }
+        
+        item = cbor_build_bytestring(key, klen);
+        (void)cbor_array_push(root, item);
+        cbor_decref(&item);
+        
+        // Add value if present (for PUT operations)
+        if (val) {
+            item = cbor_build_bytestring(val, vlen);
+            (void)cbor_array_push(root, item);
+            cbor_decref(&item);
+        }
     }
     
     size_t written = cbor_serialize(root, buf->data, MSG_MAXLEN);
@@ -59,14 +82,14 @@ static int buffer_write_kv_master(buffer_t *buf, int msg_type, void *key, size_t
 /**
  * @brief Master function for reading key-value operations.
  *
- * This function handles parsing of PUT, DEL, and GET operations.
+ * This function handles parsing of PUT, DEL, GET, and GET_RESULT operations.
  * Memory is allocated for key and value (if present) and must be freed by caller.
  *
  * @param buf Input buffer containing the CBOR message
- * @param key Output pointer to allocated key data
- * @param klen Output pointer to key length
- * @param val Output pointer to allocated value data (can be NULL for single-element arrays)
- * @param vlen Output pointer to value length (can be NULL for single-element arrays)
+ * @param key Output pointer to allocated key data (can be NULL if not needed)
+ * @param klen Output pointer to key length (can be NULL if not needed)
+ * @param val Output pointer to allocated value data (can be NULL if not needed)
+ * @param vlen Output pointer to value length (can be NULL if not needed)
  * @return 0 on success, -1 on error
  */
 static int buffer_read_kv_master(const buffer_t *buf, void **key, size_t *klen, void **val, size_t *vlen) {
@@ -84,40 +107,48 @@ static int buffer_read_kv_master(const buffer_t *buf, void **key, size_t *klen, 
         return -1;
     }
     
-    // Extract key
-    cbor_item_t *key_item = cbor_array_handle(root)[0];
-    if (!cbor_isa_bytestring(key_item)) {
-        cbor_decref(&root);
-        return -1;
-    }
-    
-    *klen = cbor_bytestring_length(key_item);
-    *key = malloc(*klen);
-    if (!*key) {
-        cbor_decref(&root);
-        return -1;
-    }
-    memcpy(*key, cbor_bytestring_handle(key_item), *klen);
-    
-    // Extract value if present
-    if (array_size == 2 && val && vlen) {
-        cbor_item_t *val_item = cbor_array_handle(root)[1];
-        if (!cbor_isa_bytestring(val_item)) {
+    // Extract key (if requested and available)
+    if (key && klen && array_size >= 1) {
+        cbor_item_t *key_item = cbor_array_handle(root)[0];
+        if (!cbor_isa_bytestring(key_item)) {
             cbor_decref(&root);
-            free(*key);
             return -1;
         }
         
-        *vlen = cbor_bytestring_length(val_item);
-        *val = malloc(*vlen);
-        if (!*val) {
+        *klen = cbor_bytestring_length(key_item);
+        *key = malloc(*klen);
+        if (!*key) {
             cbor_decref(&root);
-            free(*key);
             return -1;
         }
-        memcpy(*val, cbor_bytestring_handle(val_item), *vlen);
-    } else if (val) {
-        *val = NULL;
+        memcpy(*key, cbor_bytestring_handle(key_item), *klen);
+    }
+    
+    // Extract value
+    if (val && vlen) {
+        cbor_item_t *val_item = NULL;
+        
+        if (array_size == 2) {
+            // For PUT messages: [key, value]
+            val_item = cbor_array_handle(root)[1];
+        } else if (array_size == 1) {
+            // For GET_RESULT messages: [value]
+            val_item = cbor_array_handle(root)[0];
+        }
+        
+        if (val_item && cbor_isa_bytestring(val_item)) {
+            *vlen = cbor_bytestring_length(val_item);
+            *val = malloc(*vlen);
+            if (!*val) {
+                cbor_decref(&root);
+                if (key && *key) free(*key);
+                return -1;
+            }
+            memcpy(*val, cbor_bytestring_handle(val_item), *vlen);
+        } else {
+            *val = NULL;
+            *vlen = 0;
+        }
     }
     
     cbor_decref(&root);
@@ -150,9 +181,9 @@ int buffer_read_get(buffer_t *buf, void **key, size_t *klen) {
 }
 
 int buffer_write_get_result(buffer_t *buf, void *value, size_t vlen) {
-    return buffer_write_kv_master(buf, MSG_GET_RESULT, value, vlen, NULL, 0);
+    return buffer_write_kv_master(buf, MSG_GET_RESULT, NULL, 0, value, vlen);
 }
 
 int buffer_read_get_result(buffer_t *buf, void **value, size_t *vlen) {
-    return buffer_read_kv_master(buf, value, vlen, NULL, NULL);
+    return buffer_read_kv_master(buf, NULL, NULL, value, vlen);
 }

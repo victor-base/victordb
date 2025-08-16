@@ -1,7 +1,7 @@
 # Makefile for VictorDB servers with pkg-config
 
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -g $(shell pkg-config --cflags libcbor)
+CFLAGS = -Wall -Wextra -O2 -g3 $(shell pkg-config --cflags libcbor)
 LDFLAGS = $(shell pkg-config --libs libcbor) -L/usr/local/lib/ -lvictor
 
 # Common source files

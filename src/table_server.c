@@ -145,7 +145,7 @@ static int handle_get_message(VictorTable *core, buffer_t *msg) {
     void *key = NULL;
     void *val = NULL;
     size_t klen;
-    size_t vlen;
+    int vlen;  // Changed from size_t to int to match kv_get signature
     int ret;
 
     if (buffer_read_get(msg, &key, &klen) == -1) {
@@ -153,10 +153,14 @@ static int handle_get_message(VictorTable *core, buffer_t *msg) {
         return -1;
     }
 
-    ret = kv_get(core->table, key, (int)klen, &val, (int *)&vlen);
-    if (ret == KV_SUCCESS) {
-        ret = buffer_write_get_result(msg, val, vlen);
+    ret = kv_get(core->table, key, (int)klen, &val, &vlen);
+    if (ret == KV_SUCCESS && val != NULL && vlen > 0) {
+        ret = buffer_write_get_result(msg, val, (size_t)vlen);
     } else {
+        if (ret == KV_SUCCESS && (val == NULL || vlen <= 0)) {
+            // Key exists but value is NULL or invalid - treat as not found
+            ret = KV_KEY_NOT_FOUND;
+        }
         ret = buffer_write_op_result(msg, MSG_ERROR, ret, table_strerror(ret));
     }
     
