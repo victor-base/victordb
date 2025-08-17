@@ -340,7 +340,7 @@ void table_config_dump(const TableConfig *cfg) {  // Fixed: was IndexConfig inst
     // Display socket configuration based on type
     if (cfg->s_type == SOCKET_UNIX) {
         printf("║  Socket Type           │ %-47s ║\n", "UNIX Domain Socket");
-        printf("║  Socket Path           │ %-47s ║\n", cfg->socket.unix);
+        printf("║  Socket Path           │ %-47s ║\n", cfg->socket.unix_path);
     } else if (cfg->s_type == SOCKET_TCP) {
         printf("║  Socket Type           │ %-47s ║\n", "TCP (not enabled)");
         printf("║  Host                  │ %-47s ║\n", cfg->socket.tcp.host);
