@@ -66,7 +66,9 @@ int unix_server(const char *path) {
     int sd;
 
     memset(&addr, 0, sizeof(struct sockaddr_un));
+#ifdef __APPLE__   /* o __FreeBSD__, etc. */
     addr.sun_len = sizeof(struct sockaddr_un);
+#endif
     addr.sun_family = AF_UNIX;
     strcpy(addr.sun_path, path);
 
@@ -102,7 +104,9 @@ int unix_connect(const char *path) {
     int sd;
 
     memset(&addr, 0, sizeof(struct sockaddr_un));
+#ifdef __APPLE__   /* o __FreeBSD__, etc. */
     addr.sun_len = sizeof(struct sockaddr_un);
+#endif
     addr.sun_family = AF_UNIX;
     strcpy(addr.sun_path, path);
 
