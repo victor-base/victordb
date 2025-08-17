@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
     }
 
     log_message(LOG_INFO, "VictorDB Index Server started successfully!");
-    log_message(LOG_INFO, "Socket: %s", cfg.socket.unix);
+    log_message(LOG_INFO, "Socket: %s", cfg.socket.unix_path);
     log_message(LOG_INFO, "Index: %s (%d dimensions)", 
                 (cfg.i_type == HNSW_INDEX) ? "HNSW" : "FLAT", cfg.i_dims);
     log_message(LOG_INFO, "Database root: %s", get_database_cwd());
@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
     ret = victor_index_server(&core, server); 
     close(server);
     if (cfg.s_type == SOCKET_UNIX)
-        unlink(cfg.socket.unix);
+        unlink(cfg.socket.unix_path);
     destroy_index(&core.index);
     return ret;
 }
