@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
     sigaction(SIGHUP,  &sa, NULL);
 
     // Create and bind UNIX domain socket
-    server = unix_server(cfg.socket.unix);
+    server = unix_server(cfg.socket.unix_path);
     if (server == -1) {
         log_message(LOG_ERROR, 
             "Failed to create UNIX socket server: %s", strerror(errno)
