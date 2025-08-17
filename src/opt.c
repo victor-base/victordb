@@ -220,7 +220,7 @@ int table_parse_arguments(int argc, char *argv[], TableConfig *cfg) {
                 break;
             case 'u':  // UNIX socket path
                 cfg->s_type = SOCKET_UNIX;
-                cfg->socket.unix = optarg;
+                cfg->socket.unix_path = optarg;
                 break;
             case 'h':  // TCP host:port
                 cfg->s_type = SOCKET_TCP;
@@ -247,8 +247,8 @@ int table_parse_arguments(int argc, char *argv[], TableConfig *cfg) {
     }
 
     // Set default socket path if none was specified
-    if (cfg->socket.unix == NULL)
-        cfg->socket.unix = set_default_socket_path(NULL, cfg->name);
+    if (cfg->socket.unix_path == NULL)
+        cfg->socket.unix_path = set_default_socket_path(NULL, cfg->name);
     return 0;
 }
 
@@ -295,7 +295,7 @@ void index_config_dump(const IndexConfig *cfg) {
     // Display socket configuration based on type
     if (cfg->s_type == SOCKET_UNIX) {
         printf("║  Socket Type           │ %-47s ║\n", "UNIX Domain Socket");
-        printf("║  Socket Path           │ %-47s ║\n", cfg->socket.unix);
+        printf("║  Socket Path           │ %-47s ║\n", cfg->socket.unix_path);
     } else if (cfg->s_type == SOCKET_TCP) {
         printf("║  Socket Type           │ %-47s ║\n", "TCP (not enabled)");
         printf("║  Host                  │ %-47s ║\n", cfg->socket.tcp.host);
