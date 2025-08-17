@@ -2,7 +2,7 @@
 
 CC = gcc
 CFLAGS = -Wall -Wextra -O2 -g3 $(shell pkg-config --cflags libcbor)
-LDFLAGS = $(shell pkg-config --libs libcbor) -L/usr/local/lib/ -lvictor
+LDFLAGS = $(shell pkg-config --libs libcbor) -L. -lvictor -Wl,-rpath,@loader_path
 
 # Common source files
 COMMON_SRCS = buffer.c fileutils.c log.c opt.c protocol.c socket.c server.c
