@@ -152,7 +152,7 @@ int index_parse_arguments(int argc, char *argv[], IndexConfig *cfg) {
                 break;
             case 'u':  // UNIX socket path
                 cfg->s_type = SOCKET_UNIX;
-                cfg->socket.unix = optarg;
+                cfg->socket.unix_path = optarg;
                 break;
             case 'h':  // TCP host:port
                 cfg->s_type = SOCKET_TCP;
@@ -179,8 +179,8 @@ int index_parse_arguments(int argc, char *argv[], IndexConfig *cfg) {
     }
 
     // Set default socket path if none was specified
-    if (cfg->socket.unix == NULL)
-        cfg->socket.unix = set_default_socket_path(NULL, cfg->name);
+    if (cfg->socket.unix_path == NULL)
+        cfg->socket.unix_path = set_default_socket_path(NULL, cfg->name);
     return 0;
 }
 
