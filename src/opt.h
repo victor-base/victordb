@@ -48,7 +48,7 @@ typedef struct {
      * depending on the socket type specified in s_type.
      */
     union {
-        char *unix;  /**< Path to UNIX domain socket file */
+        char *unix_path;  /**< Path to UNIX domain socket file */
         struct {
             char *host;  /**< TCP hostname or IP address */
             int   port;  /**< TCP port number */
