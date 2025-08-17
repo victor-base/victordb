@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
     }
 
     log_message(LOG_INFO, "VictorDB Table Server started successfully!");
-    log_message(LOG_INFO, "Socket: %s", cfg.socket.unix);
+    log_message(LOG_INFO, "Socket: %s", cfg.socket.unix_path);
     log_message(LOG_INFO, "Database root: %s", get_database_cwd());
     log_message(LOG_INFO, "Export threshold: %d operations", get_export_threshold());
     
@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
     ret = victor_table_server(&core, server);
     close(server);
     if (cfg.s_type == SOCKET_UNIX)
-        unlink(cfg.socket.unix);
+        unlink(cfg.socket.unix_path);
     destroy_kvtable(&core.table);
     return ret;
 }
