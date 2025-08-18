@@ -59,7 +59,7 @@ static int handle_delete_message(VictorIndex *core, buffer_t *msg, FILE *wal) {
                 errno, strerror(errno)
             );
     }
-    return buffer_write_op_result(msg, MSG_DELETE_RESULT, vret, index_strerror(vret));
+    return buffer_write_op_result(msg, MSG_OP_RESULT, vret, index_strerror(vret));
 }
 
 /**
@@ -126,7 +126,7 @@ static int handle_insert_message(VictorIndex *core, buffer_t *msg, FILE *wal) {
     core->op_add_counter++;
 cleanup:
     if (vector) free(vector);
-    return buffer_write_op_result(msg, MSG_INSERT_RESULT, code, index_strerror(code));
+    return buffer_write_op_result(msg, MSG_OP_RESULT, code, index_strerror(code));
 }
 
 /**

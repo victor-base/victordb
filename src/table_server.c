@@ -61,7 +61,7 @@ static int handle_del_message(VictorTable *core, buffer_t *msg, FILE *wal) {
     }
     
     if (key) free(key);
-    return buffer_write_op_result(msg, MSG_DEL_RESULT, ret, table_strerror(ret));
+    return buffer_write_op_result(msg, MSG_OP_RESULT, ret, table_strerror(ret));
 }
 
 /**
@@ -121,7 +121,7 @@ static int handle_put_message(VictorTable *core, buffer_t *msg, FILE *wal) {
 cleanup:
     if (key) free(key);
     if (val) free(val);
-    return buffer_write_op_result(msg, MSG_PUT_RESULT, ret, table_strerror(ret));
+    return buffer_write_op_result(msg, MSG_OP_RESULT, ret, table_strerror(ret));
 }
 
 /**

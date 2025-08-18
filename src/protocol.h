@@ -15,22 +15,20 @@
 
 /* Vector protocol message types */
 #define MSG_INSERT          0x01
-#define MSG_INSERT_RESULT   0x02
-#define MSG_DELETE          0x03
-#define MSG_DELETE_RESULT   0x04
-#define MSG_SEARCH          0x05
-#define MSG_MATCH_RESULT    0x06
+#define MSG_DELETE          0x02
+#define MSG_SEARCH          0x03
+#define MSG_MATCH_RESULT    0x04
 
 
 /* Key-Value protocol message types */
-#define MSG_PUT             0x08
-#define MSG_PUT_RESULT      0x09
-#define MSG_GET             0x0A
-#define MSG_GET_RESULT      0x0B
-#define MSG_DEL             0x0C
-#define MSG_DEL_RESULT      0x0D
+#define MSG_PUT             0x06
+#define MSG_DEL             0x07
+#define MSG_GET             0x08
+#define MSG_GET_RESULT      0x09
 
-#define MSG_ERROR           0x07
+#define MSG_OP_RESULT       0x0A
+#define MSG_ERROR           0x0B
+
 #define MSG_MAXLEN          0x0FFFFFFF
 
 /**
