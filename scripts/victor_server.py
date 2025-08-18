@@ -13,6 +13,12 @@ Features:
 - Graceful shutdown handling
 - Process monitoring and health checks
 
+Environment Variables:
+- VICTOR_INDEX_BIN: Path to victor_index binary
+- VICTOR_TABLE_BIN: Path to victor_table binary
+- VICTOR_DB_ROOT: Database root directory (auto-set)
+- VICTOR_EXPORT_THRESHOLD: Export threshold (auto-set)
+
 Usage:
     python3 victor_server.py --name mydb --index-dims 256
     python3 victor_server.py --help
@@ -151,34 +157,44 @@ class VictorServerManager:
     def _find_binaries(self):
         """Find VictorDB binary executables"""
         if not self.config.victor_index_bin:
-            # Look in common locations
-            search_paths = [
-                "./victor_index",
-                "../src/victor_index", 
-                "./src/victor_index",
-                "/usr/local/bin/victor_index",
-                "/usr/bin/victor_index"
-            ]
-            
-            for path in search_paths:
-                if os.path.isfile(path) and os.access(path, os.X_OK):
-                    self.config.victor_index_bin = os.path.abspath(path)
-                    break
+            # Check environment variable first
+            env_path = os.environ.get('VICTOR_INDEX_BIN')
+            if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
+                self.config.victor_index_bin = os.path.abspath(env_path)
+            else:
+                # Look in installation paths first, then development paths
+                search_paths = [
+                    "/usr/local/bin/victor_index",  # Standard installation path
+                    "/usr/bin/victor_index",        # System package path
+                    "./victor_index",               # Current directory
+                    "../src/victor_index",          # One level up src
+                    "./src/victor_index",           # Local src directory
+                ]
+                
+                for path in search_paths:
+                    if os.path.isfile(path) and os.access(path, os.X_OK):
+                        self.config.victor_index_bin = os.path.abspath(path)
+                        break
         
         if not self.config.victor_table_bin:
-            # Look in common locations
-            search_paths = [
-                "./victor_table",
-                "../src/victor_table",
-                "./src/victor_table", 
-                "/usr/local/bin/victor_table",
-                "/usr/bin/victor_table"
-            ]
-            
-            for path in search_paths:
-                if os.path.isfile(path) and os.access(path, os.X_OK):
-                    self.config.victor_table_bin = os.path.abspath(path)
-                    break
+            # Check environment variable first
+            env_path = os.environ.get('VICTOR_TABLE_BIN')
+            if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
+                self.config.victor_table_bin = os.path.abspath(env_path)
+            else:
+                # Look in installation paths first, then development paths
+                search_paths = [
+                    "/usr/local/bin/victor_table",  # Standard installation path
+                    "/usr/bin/victor_table",        # System package path
+                    "./victor_table",               # Current directory
+                    "../src/victor_table",          # One level up src
+                    "./src/victor_table",           # Local src directory
+                ]
+                
+                for path in search_paths:
+                    if os.path.isfile(path) and os.access(path, os.X_OK):
+                        self.config.victor_table_bin = os.path.abspath(path)
+                        break
         
         if not self.config.victor_index_bin:
             raise FileNotFoundError("victor_index binary not found")

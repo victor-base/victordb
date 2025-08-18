@@ -20,7 +20,11 @@ TABLE_OBJS = $(TABLE_SRCS:.c=.o)
 INDEX_TARGET = victor_index
 TABLE_TARGET = victor_table
 
-.PHONY: all clean index table
+# Installation paths
+PREFIX = /usr/local
+BINDIR = $(PREFIX)/bin
+
+.PHONY: all clean index table install uninstall
 
 all: $(INDEX_TARGET) $(TABLE_TARGET)
 
@@ -36,6 +40,16 @@ $(TABLE_TARGET): $(TABLE_OBJS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+install: $(INDEX_TARGET) $(TABLE_TARGET)
+	install -d $(BINDIR)
+	install -m 755 $(INDEX_TARGET) $(BINDIR)/
+	install -m 755 $(TABLE_TARGET) $(BINDIR)/
+	install -m 755 ../scripts/victor_server.py $(BINDIR)
+
+uninstall:
+	rm -f $(BINDIR)/$(INDEX_TARGET)
+	rm -f $(BINDIR)/$(TABLE_TARGET)
 
 clean:
 	rm -f $(INDEX_OBJS) $(TABLE_OBJS) $(INDEX_TARGET) $(TABLE_TARGET)
