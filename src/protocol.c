@@ -3,6 +3,7 @@
 #include <cbor.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include "panic.h"
 
 /**
@@ -18,20 +19,51 @@
  * @return 0 on success, -1 on error or insufficient buffer space.
  */
 int buffer_write_op_result(buffer_t *buf, int msg_type, int code, const char *msg) {
-    cbor_item_t *root = cbor_new_definite_array(2);
-    cbor_item_t *c = cbor_build_uint32((uint32_t)code);
-    (void)cbor_array_push(root, c);
+    cbor_item_t *root = NULL;
+    cbor_item_t *c = NULL;
+    cbor_item_t *s = NULL;
+    size_t written;
+
+    if (!buf || !buf->data) return -1;
+
+    root = cbor_new_definite_array(2);
+    if (!root) return -1;
+
+    c = cbor_build_uint32((uint32_t)code);
+    if (!c) {
+        cbor_decref(&root);
+        return -1;
+    }
+    if (!cbor_array_push(root, c)) {
+        cbor_decref(&c);
+        cbor_decref(&root);
+        return -1;
+    }
     cbor_decref(&c);
 
-    cbor_item_t *s = cbor_build_string(msg ? msg : "");
-    (void)cbor_array_push(root, s);
+    s = cbor_build_string(msg ? msg : "");
+    if (!s) {
+        cbor_decref(&root);
+        return -1;
+    }
+    if (!cbor_array_push(root, s)) {
+        cbor_decref(&s);
+        cbor_decref(&root);
+        return -1;
+    }
     cbor_decref(&s);
 
-    size_t written = cbor_serialize(root, buf->data, MSG_MAXLEN);
+    written = cbor_serialize(root, buf->data, MSG_MAXLEN);
     if (written == 0 || written > MSG_MAXLEN) {
         cbor_decref(&root);
         return -1;
     }
+
+    if (written > (size_t)INT_MAX) {
+        cbor_decref(&root);
+        return -1;
+    }
+
     buf->hdr.len = (int)written;
     buf->hdr.type = msg_type;
 
@@ -54,31 +86,40 @@ int buffer_write_op_result(buffer_t *buf, int msg_type, int code, const char *ms
  */
 int buffer_read_op_result(const buffer_t *buf, int *code, char **msg) {
     struct cbor_load_result result;
-    cbor_item_t *root = cbor_load(buf->data, buf->hdr.len, &result);
+    cbor_item_t *root = NULL;
+    cbor_item_t *c = NULL;
+    cbor_item_t *s = NULL;
+
+    if (!buf || !buf->data || buf->hdr.len == 0 || buf->hdr.len > MSG_MAXLEN) return -1;
+
+    root = cbor_load(buf->data, buf->hdr.len, &result);
     if (!root || !cbor_isa_array(root) || cbor_array_size(root) != 2) {
         if (root) cbor_decref(&root);
         return -1;
     }
-    cbor_item_t *c = cbor_array_handle(root)[0];
-    if (!cbor_isa_uint(c)) {
+
+    c = cbor_array_handle(root)[0];
+    if (!c || !cbor_isa_uint(c)) {
         cbor_decref(&root);
         return -1;
     }
     *code = (int)cbor_get_uint32(c);
 
-    cbor_item_t *s = cbor_array_handle(root)[1];
-    if (!cbor_isa_string(s)) {
+    s = cbor_array_handle(root)[1];
+    if (!s || !cbor_isa_string(s)) {
         cbor_decref(&root);
         return -1;
     }
+
     size_t len = cbor_string_length(s);
+    /* allocate len+1 even for empty string to keep contract that caller frees */
     *msg = malloc(len + 1);
     if (!*msg) {
         cbor_decref(&root);
         return -1;
     }
-    memcpy(*msg, cbor_string_handle(s), len);
-    (*msg)[len] = 0;
+    if (len > 0) memcpy(*msg, cbor_string_handle(s), len);
+    (*msg)[len] = '\0';
 
     cbor_decref(&root);
     return 0;

@@ -34,26 +34,66 @@
  * @return 0 on success, -1 on error or if the message exceeds buffer size.
  */
 int buffer_write_insert(buffer_t *buf, uint64_t id, const float *vec, size_t dims) {
-    cbor_item_t *root = cbor_new_definite_array(2);
-    cbor_item_t *vec_arr = cbor_new_definite_array(dims);
+    cbor_item_t *root = NULL;
+    cbor_item_t *vec_arr = NULL; 
+    cbor_item_t *id_item = NULL;
+    size_t written;
 
-    cbor_item_t *id_item = cbor_build_uint64(id);
-    (void)cbor_array_push(root, id_item);
+    PANIC_IF(!buf, "buffer cannot be null");
+    PANIC_IF(!buf->data, "buffer data cannot be null");
+    PANIC_IF(!vec && dims > 0, "vector cannot be null with non-zero dimensions");
+
+    root = cbor_new_definite_array(2);
+    if (!root) return -1;
+
+    vec_arr = cbor_new_definite_array(dims);
+    if (!vec_arr) {
+        cbor_decref(&root);
+        return -1;
+    }
+
+    id_item = cbor_build_uint64(id);
+    if (!id_item) {
+        cbor_decref(&vec_arr);
+        cbor_decref(&root);
+        return -1;
+    }
+    if (!cbor_array_push(root, id_item)) {
+        cbor_decref(&id_item);
+        cbor_decref(&vec_arr);
+        cbor_decref(&root);
+        return -1;
+    }
     cbor_decref(&id_item);
 
     for (size_t i = 0; i < dims; i++) {
         cbor_item_t *f = cbor_build_float4(vec[i]);
-        (void)cbor_array_push(vec_arr, f);
+        if (!f) {
+            cbor_decref(&vec_arr);
+            cbor_decref(&root);
+            return -1;
+        }
+        if (!cbor_array_push(vec_arr, f)) {
+            cbor_decref(&f);
+            cbor_decref(&vec_arr);
+            cbor_decref(&root);
+            return -1;
+        }
         cbor_decref(&f);
     }
-    (void)cbor_array_push(root, vec_arr);
+    if (!cbor_array_push(root, vec_arr)) {
+        cbor_decref(&vec_arr);
+        cbor_decref(&root);
+        return -1;
+    }
     cbor_decref(&vec_arr);
 
-    size_t written = cbor_serialize(root, buf->data, MSG_MAXLEN);
+    written = cbor_serialize(root, buf->data, MSG_MAXLEN);
     if (written == 0 || written > MSG_MAXLEN) {
         cbor_decref(&root);
         return -1;
     }
+
     buf->hdr.len = (int)written;
     buf->hdr.type = MSG_INSERT;
 
@@ -82,28 +122,45 @@ int buffer_write_insert(buffer_t *buf, uint64_t id, const float *vec, size_t dim
  */
 int buffer_read_insert(const buffer_t *buf, uint64_t *id, float **vec, size_t *dims) {
     struct cbor_load_result result;
-    cbor_item_t *root = cbor_load(buf->data, buf->hdr.len, &result);
+    cbor_item_t *root = NULL;
+    cbor_item_t *id_item = NULL;
+    cbor_item_t *vec_arr = NULL;
+
+    PANIC_IF(!buf, "buffer cannot be null");
+    PANIC_IF(!buf->data, "buffer data cannot be null");
+    PANIC_IF(!id, "id output parameter cannot be null");
+    PANIC_IF(!vec, "vec output parameter cannot be null");
+    PANIC_IF(!dims, "dims output parameter cannot be null");
+    if (buf->hdr.len == 0 || buf->hdr.len > MSG_MAXLEN) return -1;
+
+    root = cbor_load(buf->data, buf->hdr.len, &result);
     if (!root || !cbor_isa_array(root) || cbor_array_size(root) != 2) {
         if (root) cbor_decref(&root);
         return -1;
     }
 
     // Extract ID
-    cbor_item_t *id_item = cbor_array_handle(root)[0];
-    if (!cbor_isa_uint(id_item) || cbor_int_get_width(id_item) > CBOR_INT_64) {
+    id_item = cbor_array_handle(root)[0];
+    if (!id_item || !cbor_isa_uint(id_item) || cbor_int_get_width(id_item) > CBOR_INT_64) {
         cbor_decref(&root);
         return -1;
     }
     *id = cbor_get_uint64(id_item);
 
     // Extract vector
-    cbor_item_t *vec_arr = cbor_array_handle(root)[1];
-    if (!cbor_isa_array(vec_arr)) {
+    vec_arr = cbor_array_handle(root)[1];
+    if (!vec_arr || !cbor_isa_array(vec_arr)) {
         cbor_decref(&root);
         return -1;
     }
 
     *dims = cbor_array_size(vec_arr);
+    if (*dims == 0) {
+        *vec = NULL;
+        cbor_decref(&root);
+        return 0;
+    }
+
     *vec = malloc(sizeof(float) * (*dims));
     if (!*vec) {
         cbor_decref(&root);
@@ -112,9 +169,10 @@ int buffer_read_insert(const buffer_t *buf, uint64_t *id, float **vec, size_t *d
 
     for (size_t i = 0; i < *dims; i++) {
         cbor_item_t *f = cbor_array_handle(vec_arr)[i];
-        if (!cbor_isa_float_ctrl(f)) {
-            cbor_decref(&root);
+        if (!f || !cbor_isa_float_ctrl(f)) {
             free(*vec);
+            *vec = NULL;
+            cbor_decref(&root);
             return -1;
         }
 
@@ -126,8 +184,9 @@ int buffer_read_insert(const buffer_t *buf, uint64_t *id, float **vec, size_t *d
                 (*vec)[i] = (float)cbor_float_get_float8(f);
                 break;
             default:
-                cbor_decref(&root);
                 free(*vec);
+                *vec = NULL;
+                cbor_decref(&root);
                 return -1;
         }
     }
@@ -149,25 +208,64 @@ int buffer_read_insert(const buffer_t *buf, uint64_t *id, float **vec, size_t *d
  * @return 0 on success, -1 on error or insufficient buffer space.
  */
 int buffer_write_search(buffer_t *buf, const float *vec, size_t dims, int n) {
-    cbor_item_t *root = cbor_new_definite_array(2);
-    cbor_item_t *vec_arr = cbor_new_definite_array(dims);
+    cbor_item_t *root = NULL;
+    cbor_item_t *vec_arr = NULL;
+    cbor_item_t *n_item = NULL;
+    size_t written;
+
+    PANIC_IF(!buf, "buffer cannot be null");
+    PANIC_IF(!buf->data, "buffer data cannot be null");
+    PANIC_IF(!vec && dims > 0, "vector cannot be null with non-zero dimensions");
+
+    root = cbor_new_definite_array(2);
+    if (!root) return -1;
+
+    vec_arr = cbor_new_definite_array(dims);
+    if (!vec_arr) {
+        cbor_decref(&root);
+        return -1;
+    }
+
     for (size_t i = 0; i < dims; i++) {
         cbor_item_t *f = cbor_build_float4(vec[i]);
-        (void)cbor_array_push(vec_arr, f);
+        if (!f) {
+            cbor_decref(&vec_arr);
+            cbor_decref(&root);
+            return -1;
+        }
+        if (!cbor_array_push(vec_arr, f)) {
+            cbor_decref(&f);
+            cbor_decref(&vec_arr);
+            cbor_decref(&root);
+            return -1;
+        }
         cbor_decref(&f);
     }
-    (void)cbor_array_push(root, vec_arr);
+    if (!cbor_array_push(root, vec_arr)) {
+        cbor_decref(&vec_arr);
+        cbor_decref(&root);
+        return -1;
+    }
     cbor_decref(&vec_arr);
 
-    cbor_item_t *n_item = cbor_build_uint32((uint32_t)n);
-    (void)cbor_array_push(root, n_item);
+    n_item = cbor_build_uint32((uint32_t)n);
+    if (!n_item) {
+        cbor_decref(&root);
+        return -1;
+    }
+    if (!cbor_array_push(root, n_item)) {
+        cbor_decref(&n_item);
+        cbor_decref(&root);
+        return -1;
+    }
     cbor_decref(&n_item);
 
-    size_t written = cbor_serialize(root, buf->data, MSG_MAXLEN);
+    written = cbor_serialize(root, buf->data, MSG_MAXLEN);
     if (written == 0 || written > MSG_MAXLEN) {
         cbor_decref(&root);
         return -1;
     }
+
     buf->hdr.len = (int)written;
     buf->hdr.type = MSG_SEARCH;
 
@@ -191,44 +289,70 @@ int buffer_write_search(buffer_t *buf, const float *vec, size_t dims, int n) {
  */
 int buffer_read_search(const buffer_t *buf, float **vec, size_t *dims, int *n) {
     struct cbor_load_result result;
-    cbor_item_t *root = cbor_load(buf->data, buf->hdr.len, &result);
+    cbor_item_t *root = NULL;
+    cbor_item_t *vec_arr = NULL;
+    cbor_item_t *n_item = NULL;
+
+    PANIC_IF(!buf, "buffer cannot be null");
+    PANIC_IF(!buf->data, "buffer data cannot be null");
+    PANIC_IF(!vec, "vec output parameter cannot be null");
+    PANIC_IF(!dims, "dims output parameter cannot be null");
+    PANIC_IF(!n, "n output parameter cannot be null");
+    if (buf->hdr.len == 0 || buf->hdr.len > MSG_MAXLEN) return -1;
+
+    root = cbor_load(buf->data, buf->hdr.len, &result);
     if (!root || !cbor_isa_array(root) || cbor_array_size(root) != 2) {
         if (root) cbor_decref(&root);
         return -1;
     }
-    cbor_item_t *vec_arr = cbor_array_handle(root)[0];
-    if (!cbor_isa_array(vec_arr)) {
+
+    vec_arr = cbor_array_handle(root)[0];
+    if (!vec_arr || !cbor_isa_array(vec_arr)) {
         cbor_decref(&root);
         return -1;
     }
+
     *dims = cbor_array_size(vec_arr);
-    *vec = malloc(sizeof(float) * (*dims));
-    for (size_t i = 0; i < *dims; i++) {
-        cbor_item_t *f = cbor_array_handle(vec_arr)[i];
-        if (!cbor_isa_float_ctrl(f)) {
+    if (*dims == 0) {
+        *vec = NULL;
+    } else {
+        *vec = malloc(sizeof(float) * (*dims));
+        if (!*vec) {
             cbor_decref(&root);
-            free(*vec);
-            *vec = NULL;
             return -1;
         }
-        switch (cbor_float_get_width(f)) {
-            case CBOR_FLOAT_32:
-                (*vec)[i] = cbor_float_get_float4(f);
-                break;
-            case CBOR_FLOAT_64:
-                (*vec)[i] = (float)cbor_float_get_float8(f);
-                break;
-            default:
-                cbor_decref(&root);
+
+        for (size_t i = 0; i < *dims; i++) {
+            cbor_item_t *f = cbor_array_handle(vec_arr)[i];
+            if (!f || !cbor_isa_float_ctrl(f)) {
                 free(*vec);
+                *vec = NULL;
+                cbor_decref(&root);
                 return -1;
+            }
+            switch (cbor_float_get_width(f)) {
+                case CBOR_FLOAT_32:
+                    (*vec)[i] = cbor_float_get_float4(f);
+                    break;
+                case CBOR_FLOAT_64:
+                    (*vec)[i] = (float)cbor_float_get_float8(f);
+                    break;
+                default:
+                    free(*vec);
+                    *vec = NULL;
+                    cbor_decref(&root);
+                    return -1;
+            }
         }
     }
-    cbor_item_t *n_item = cbor_array_handle(root)[1];
-    if (!cbor_isa_uint(n_item)) {
+
+    n_item = cbor_array_handle(root)[1];
+    if (!n_item || !cbor_isa_uint(n_item)) {
+        if (*vec) {
+            free(*vec);
+            *vec = NULL;
+        }
         cbor_decref(&root);
-        free(*vec);
-        *vec = NULL;
         return -1;
     }
     *n = (int)cbor_get_uint32(n_item);
@@ -255,29 +379,66 @@ int buffer_write_match_result(
     const float    *distances,
     size_t n
 ) {
-    PANIC_IF(buf == NULL, "null buffer");
-    PANIC_IF(ids == NULL, "null ids");
-    PANIC_IF(distances == NULL, "null distances");
+    cbor_item_t *root = NULL;
+    size_t written;
 
-    cbor_item_t *root = cbor_new_definite_array(n);
+    PANIC_IF(!buf, "buffer cannot be null");
+    PANIC_IF(!buf->data, "buffer data cannot be null");
+    PANIC_IF(!ids, "ids array cannot be null");
+    PANIC_IF(!distances, "distances array cannot be null");
+
+    root = cbor_new_definite_array(n);
+    if (!root) return -1;
+
     for (size_t i = 0; i < n; i++) {
         cbor_item_t *pair = cbor_new_definite_array(2);
+        if (!pair) {
+            cbor_decref(&root);
+            return -1;
+        }
+
         cbor_item_t *id_item = cbor_build_uint64(ids[i]);
-        (void)cbor_array_push(pair, id_item);
+        if (!id_item) {
+            cbor_decref(&pair);
+            cbor_decref(&root);
+            return -1;
+        }
+        if (!cbor_array_push(pair, id_item)) {
+            cbor_decref(&id_item);
+            cbor_decref(&pair);
+            cbor_decref(&root);
+            return -1;
+        }
         cbor_decref(&id_item);
 
         cbor_item_t *distance_item = cbor_build_float4(distances[i]);
-        (void)cbor_array_push(pair, distance_item);
+        if (!distance_item) {
+            cbor_decref(&pair);
+            cbor_decref(&root);
+            return -1;
+        }
+        if (!cbor_array_push(pair, distance_item)) {
+            cbor_decref(&distance_item);
+            cbor_decref(&pair);
+            cbor_decref(&root);
+            return -1;
+        }
         cbor_decref(&distance_item);
 
-        (void)cbor_array_push(root, pair);
+        if (!cbor_array_push(root, pair)) {
+            cbor_decref(&pair);
+            cbor_decref(&root);
+            return -1;
+        }
         cbor_decref(&pair);
     }
-    size_t written = cbor_serialize(root, buf->data, MSG_MAXLEN);
+
+    written = cbor_serialize(root, buf->data, MSG_MAXLEN);
     if (written == 0 || written > MSG_MAXLEN) {
         cbor_decref(&root);
         return -1;
     }
+
     buf->hdr.len = (int)written;
     buf->hdr.type = MSG_MATCH_RESULT;
 
@@ -307,36 +468,41 @@ int buffer_read_match_result(
     size_t    n, 
     size_t *out_count
 ) {
-
-    PANIC_IF(buf == NULL, "null buffer");
-    PANIC_IF(ids == NULL, "null ids");
-    PANIC_IF(distances == NULL, "null distances");
-    PANIC_IF(out_count == NULL, "null out_count");
-    
     struct cbor_load_result result;
-    cbor_item_t *root = cbor_load(buf->data, buf->hdr.len, &result);
+    cbor_item_t *root = NULL;
+
+    PANIC_IF(!buf, "buffer cannot be null");
+    PANIC_IF(!buf->data, "buffer data cannot be null");
+    PANIC_IF(!ids, "ids array cannot be null");
+    PANIC_IF(!distances, "distances array cannot be null");
+    PANIC_IF(!out_count, "out_count cannot be null");
+    if (buf->hdr.len == 0 || buf->hdr.len > MSG_MAXLEN) return -1;
+    
+    root = cbor_load(buf->data, buf->hdr.len, &result);
     if (!root || !cbor_isa_array(root)) {
         if (root) cbor_decref(&root);
         return -1;
     }
+
     size_t count = cbor_array_size(root);
     if (count > n) count = n;
+
     for (size_t i = 0; i < count; i++) {
         cbor_item_t *pair = cbor_array_handle(root)[i];
-        if (!cbor_isa_array(pair) || cbor_array_size(pair) != 2) {
-            cbor_decref(&root);
-            return -1;
-        }
-        cbor_item_t *id_item = cbor_array_handle(pair)[0];
-        if (!cbor_isa_uint(id_item)) {
+        if (!pair || !cbor_isa_array(pair) || cbor_array_size(pair) != 2) {
             cbor_decref(&root);
             return -1;
         }
 
+        cbor_item_t *id_item = cbor_array_handle(pair)[0];
+        if (!id_item || !cbor_isa_uint(id_item)) {
+            cbor_decref(&root);
+            return -1;
+        }
         ids[i] = cbor_get_uint64(id_item);
 
         cbor_item_t *distance_item = cbor_array_handle(pair)[1];
-        if (!cbor_is_float(distance_item)) {
+        if (!distance_item || !cbor_is_float(distance_item)) {
             cbor_decref(&root);
             return -1;
         }
@@ -358,16 +524,34 @@ int buffer_read_match_result(
  * @return 0 on success, -1 on error or insufficient buffer space.
  */
 int buffer_write_delete(buffer_t *buf, uint64_t id) {
-    cbor_item_t *root = cbor_new_definite_array(1);
-    cbor_item_t *id_item = cbor_build_uint64(id);
-    (void)cbor_array_push(root, id_item);
+    cbor_item_t *root = NULL;
+    cbor_item_t *id_item = NULL;
+    size_t written;
+
+    PANIC_IF(!buf, "buffer cannot be null");
+    PANIC_IF(!buf->data, "buffer data cannot be null");
+
+    root = cbor_new_definite_array(1);
+    if (!root) return -1;
+
+    id_item = cbor_build_uint64(id);
+    if (!id_item) {
+        cbor_decref(&root);
+        return -1;
+    }
+    if (!cbor_array_push(root, id_item)) {
+        cbor_decref(&id_item);
+        cbor_decref(&root);
+        return -1;
+    }
     cbor_decref(&id_item);
 
-    size_t written = cbor_serialize(root, buf->data, MSG_MAXLEN);
+    written = cbor_serialize(root, buf->data, MSG_MAXLEN);
     if (written == 0 || written > MSG_MAXLEN) {
         cbor_decref(&root);
         return -1;
     }
+
     buf->hdr.len = (int)written;
     buf->hdr.type = MSG_DELETE;
 
@@ -387,13 +571,22 @@ int buffer_write_delete(buffer_t *buf, uint64_t id) {
  */
 int buffer_read_delete(const buffer_t *buf, uint64_t *id) {
     struct cbor_load_result result;
-    cbor_item_t *root = cbor_load(buf->data, buf->hdr.len, &result);
+    cbor_item_t *root = NULL;
+    cbor_item_t *id_item = NULL;
+
+    PANIC_IF(!buf, "buffer cannot be null");
+    PANIC_IF(!buf->data, "buffer data cannot be null");
+    PANIC_IF(!id, "id output parameter cannot be null");
+    if (buf->hdr.len == 0 || buf->hdr.len > MSG_MAXLEN) return -1;
+
+    root = cbor_load(buf->data, buf->hdr.len, &result);
     if (!root || !cbor_isa_array(root) || cbor_array_size(root) != 1) {
         if (root) cbor_decref(&root);
         return -1;
     }
-    cbor_item_t *id_item = cbor_array_handle(root)[0];
-    if (!cbor_isa_uint(id_item)) {
+
+    id_item = cbor_array_handle(root)[0];
+    if (!id_item || !cbor_isa_uint(id_item)) {
         cbor_decref(&root);
         return -1;
     }
