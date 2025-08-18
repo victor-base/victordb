@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "socket.h"
-
+#include <arpa/inet.h>
 /**
  * @brief Serializes a protocol header into a 4-byte buffer.
  *
