@@ -15,6 +15,7 @@ VictorDB is a high-performance, distributed vector database system designed for 
 - **Configurable Dimensions**: Support for vectors of arbitrary dimensions
 - **Production Ready**: Robust error handling, logging, and monitoring capabilities
 - **Python Integration**: Easy-to-use Python wrapper for server management
+- **Official Python Client**: Full-featured Python client available via `pip install victordb`
 
 ## Architecture
 
@@ -54,7 +55,7 @@ VictorDB requires the `libvictor` library, which must be installed separately:
 # Clone and install libvictor
 git clone https://github.com/victor-base/libvictor.git
 cd libvictor
-make
+make all
 sudo make install
 
 # Verify installation
@@ -78,7 +79,7 @@ Make sure `libvictor` is properly installed and accessible via `pkg-config` befo
    # If not already installed, install libvictor first
    git clone https://github.com/victor-base/libvictor.git
    cd libvictor
-   make && sudo make install
+   make all && sudo make install
    cd ../victordb
    ```
 
@@ -190,7 +191,42 @@ VictorDB supports several environment variables for configuration:
 
 ### Client Integration
 
-VictorDB uses CBOR protocol for client communication. Here's a basic example structure:
+#### Python Client (Recommended)
+
+VictorDB provides an official Python client that can be easily installed via pip:
+
+```bash
+pip install victordb
+```
+
+Example usage with the Python client:
+
+```python
+from victordb import VictorClient
+
+# Connect to VictorDB
+client = VictorClient(
+    index_socket='/tmp/victor_default_index.sock',
+    table_socket='/tmp/victor_default_table.sock'
+)
+
+# Insert vectors
+vector_id = 12345
+vector_data = [0.1, 0.2, 0.3, 0.4, ...]  # Your vector data
+client.insert_vector(vector_id, vector_data)
+
+# Search for similar vectors
+query_vector = [0.15, 0.25, 0.35, 0.45, ...]
+results = client.search_vectors(query_vector, num_results=10)
+
+# Store key-value data
+client.put_data("user:123", {"name": "John", "age": 30})
+user_data = client.get_data("user:123")
+```
+
+#### Manual CBOR Integration
+
+For other languages or custom implementations, VictorDB uses CBOR protocol for client communication:
 
 ```python
 import socket
@@ -250,7 +286,7 @@ results = cbor2.loads(response)
 # Install libvictor dependency first
 git clone https://github.com/victor-base/libvictor.git
 cd libvictor
-make && sudo make install
+make all && sudo make install
 cd ..
 
 # Build VictorDB
@@ -347,10 +383,11 @@ VictorDB is released under the GNU General Public License v3.0. See the [LICENSE
 
 ## Acknowledgments
 
-VictorDB uses the following open-source libraries:
+VictorDB uses the following open-source libraries and tools:
 
 - [libvictor](https://github.com/victor-base/libvictor) - Core vector database library (required dependency)
 - [libcbor](https://github.com/PJK/libcbor) - CBOR protocol implementation
+- [Python VictorDB Client](https://pypi.org/project/victordb/) - Official Python client library
 - Standard C libraries for system operations
 
 ---
