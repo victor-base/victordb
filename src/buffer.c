@@ -114,6 +114,7 @@ int buffer_dump_wal(const buffer_t *buf, FILE *file) {
     size_t total = 4 + buf->hdr.len;
     if (fwrite(buf->_data, 1, total, file) != total)
         return -1;
+    fflush(file);
     return 0;
 }
 

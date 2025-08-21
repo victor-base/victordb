@@ -17,13 +17,13 @@ TABLE_SRCS = $(COMMON_SRCS) table_main.c kvproto.c table_server.c
 TABLE_OBJS = $(TABLE_SRCS:.c=.o)
 
 # WAL dump utility sources
-WAL_DUMP_SRCS = $(COMMON_SRCS) wal_dump.c kvproto.c viproto.c
+WAL_DUMP_SRCS = $(COMMON_SRCS) victorwd.c kvproto.c viproto.c
 WAL_DUMP_OBJS = $(WAL_DUMP_SRCS:.c=.o)
 
 # Targets
 INDEX_TARGET = victor_index
 TABLE_TARGET = victor_table
-WAL_DUMP_TARGET = wal_dump
+WAL_DUMP_TARGET = victorwd
 
 # Installation paths
 PREFIX = /usr/local
