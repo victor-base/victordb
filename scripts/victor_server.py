@@ -92,6 +92,7 @@ class ServerConfig:
     
     # Table server configuration
     table_socket: str = ""  # Will be auto-generated based on name
+    table_debug: bool = False  # Debug mode for table server
     
     # Logging configuration
     log_dir: str = ""  # Will be auto-generated based on name
@@ -294,6 +295,10 @@ class VictorServerManager:
             "-u", self.config.table_socket
         ]
         
+        # Add debug flag if enabled
+        if self.config.table_debug:
+            cmd.append("-D")
+        
         # Set up log redirection
         stdout_log, stderr_log = self._get_log_files("table")
         
@@ -493,6 +498,8 @@ For more information, visit: https://github.com/victor-base/victordb
                         help="Disable logging to files (log to console only)")
     parser.add_argument("--no-redirect-stdout", action="store_true", 
                         help="Don't redirect stdout to /dev/null (useful for debugging)")
+    parser.add_argument("--debug", action="store_true", 
+                        help="Enable debug mode (dumps all keys at table server startup)")
     
     args = parser.parse_args()
     
@@ -505,6 +512,7 @@ For more information, visit: https://github.com/victor-base/victordb
         index_dims=args.index_dims,
         index_type=args.index_type,
         index_method=args.index_method,
+        table_debug=args.debug,
         log_dir=args.log_dir or "",  # Will be auto-generated if empty
         log_to_file=not args.no_log_files,
         redirect_stdout=not args.no_redirect_stdout

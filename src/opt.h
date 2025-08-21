@@ -65,6 +65,7 @@ typedef struct {
 typedef struct {
     char *name;     /**< Database name/identifier */
     int s_type;     /**< Socket type (SOCKET_TCP or SOCKET_UNIX) */
+    int debug;      /**< Debug mode flag (1 = enabled, 0 = disabled) */
     
     /**
      * @brief Socket configuration union.

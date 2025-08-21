@@ -77,9 +77,11 @@ void table_usage(const char *progname) {
         "  -n <dbname>        Name of the database to create or open\n"
         "Optional arguments:\n"
         "  -u <socket_path>   Path to UNIX socket [default: auto-generated]\n"
+        "  -D                 Enable debug mode (dumps all keys at startup)\n"
         "\nExample:\n"
-        "  %s -n musicdb -u /tmp/musicdb.sock\n",
-        progname, progname
+        "  %s -n musicdb -u /tmp/musicdb.sock\n"
+        "  %s -n testdb -D                     # Start with debug dump\n",
+        progname, progname, progname
     );
 }
 
@@ -212,8 +214,9 @@ int table_parse_arguments(int argc, char *argv[], TableConfig *cfg) {
 
     // Set default values for optional parameters
     cfg->s_type = DEFAULT_SOCKET_TYPE;
+    cfg->debug = 0;  // Debug mode disabled by default
 
-    while ((opt = getopt(argc, argv, "n:u:h:")) != -1) {  // Fixed: added 'n' to options
+    while ((opt = getopt(argc, argv, "n:u:h:D")) != -1) {  // Added 'D' for debug
         switch (opt) {
             case 'n':  // Database name
                 cfg->name = optarg;
@@ -232,6 +235,9 @@ int table_parse_arguments(int argc, char *argv[], TableConfig *cfg) {
                 *sep = 0;  // Split the string at the colon
                 cfg->socket.tcp.host = optarg;
                 cfg->socket.tcp.port = atoi(sep + 1);
+                break;
+            case 'D':  // Debug mode
+                cfg->debug = 1;
                 break;
             default:  // Unknown option
                 fprintf(stderr, "invalid argument - Abort\n");
@@ -335,6 +341,7 @@ void table_config_dump(const TableConfig *cfg) {  // Fixed: was IndexConfig inst
     printf("║  Configuration Summary                                                 ║\n");
     printf("╠═══════════════════════╪════════════════════════════════════════════════╣\n");
     printf("║  Database Name         │ %-47s ║\n", cfg->name);
+    printf("║  Debug Mode            │ %-47s ║\n", cfg->debug ? "ENABLED" : "DISABLED");
     printf("╠═══════════════════════╪════════════════════════════════════════════════╣\n");
 
     // Display socket configuration based on type
