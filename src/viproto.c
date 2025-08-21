@@ -355,7 +355,29 @@ int buffer_read_search(const buffer_t *buf, float **vec, size_t *dims, int *n) {
         cbor_decref(&root);
         return -1;
     }
-    *n = (int)cbor_get_uint32(n_item);
+    
+    // Handle different integer sizes from CBOR encoding
+    switch (cbor_int_get_width(n_item)) {
+        case CBOR_INT_8:
+            *n = (int)cbor_get_uint8(n_item);
+            break;
+        case CBOR_INT_16:
+            *n = (int)cbor_get_uint16(n_item);
+            break;
+        case CBOR_INT_32:
+            *n = (int)cbor_get_uint32(n_item);
+            break;
+        case CBOR_INT_64:
+            *n = (int)cbor_get_uint64(n_item);
+            break;
+        default:
+            if (*vec) {
+                free(*vec);
+                *vec = NULL;
+            }
+            cbor_decref(&root);
+            return -1;
+    }
 
     cbor_decref(&root);
     return 0;
