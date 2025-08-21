@@ -138,16 +138,10 @@ int main(int argc, char *argv[]) {
     log_message(LOG_INFO, "Database root: %s", get_database_cwd());
     log_message(LOG_INFO, "Export threshold: %d operations", get_export_threshold());
     
-    uint64_t sz;
+    uint64_t sz = 0;
     kv_size(core.table, &sz);
     log_message(LOG_INFO, "Elements loaded: %" PRIu64, sz);
     log_message(LOG_INFO, "Key-value table ready for operations");
-
-    // Debug dump if enabled
-    if (cfg.debug) {
-        log_message(LOG_INFO, "Debug mode enabled - performing startup dump");
-        victor_table_debug_dump(&core);
-    }
 
     // Start main server loop
     ret = victor_table_server(&core, server);

@@ -16,21 +16,28 @@ INDEX_OBJS = $(INDEX_SRCS:.c=.o)
 TABLE_SRCS = $(COMMON_SRCS) table_main.c kvproto.c table_server.c
 TABLE_OBJS = $(TABLE_SRCS:.c=.o)
 
+# WAL dump utility sources
+WAL_DUMP_SRCS = $(COMMON_SRCS) wal_dump.c kvproto.c viproto.c
+WAL_DUMP_OBJS = $(WAL_DUMP_SRCS:.c=.o)
+
 # Targets
 INDEX_TARGET = victor_index
 TABLE_TARGET = victor_table
+WAL_DUMP_TARGET = wal_dump
 
 # Installation paths
 PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
-.PHONY: all clean index table install uninstall
+.PHONY: all clean index table wal_dump install uninstall
 
-all: $(INDEX_TARGET) $(TABLE_TARGET)
+all: $(INDEX_TARGET) $(TABLE_TARGET) $(WAL_DUMP_TARGET)
 
 index: $(INDEX_TARGET)
 
 table: $(TABLE_TARGET)
+
+wal_dump: $(WAL_DUMP_TARGET)
 
 $(INDEX_TARGET): $(INDEX_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
@@ -38,19 +45,24 @@ $(INDEX_TARGET): $(INDEX_OBJS)
 $(TABLE_TARGET): $(TABLE_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
+$(WAL_DUMP_TARGET): $(WAL_DUMP_OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-install: $(INDEX_TARGET) $(TABLE_TARGET)
+install: $(INDEX_TARGET) $(TABLE_TARGET) $(WAL_DUMP_TARGET)
 	install -d $(BINDIR)
 	install -m 755 $(INDEX_TARGET) $(BINDIR)/
 	install -m 755 $(TABLE_TARGET) $(BINDIR)/
+	install -m 755 $(WAL_DUMP_TARGET) $(BINDIR)/
 	install -m 755 ../scripts/victor_server.py $(BINDIR)
 
 uninstall:
 	rm -f $(BINDIR)/$(INDEX_TARGET)
 	rm -f $(BINDIR)/$(TABLE_TARGET)
+	rm -f $(BINDIR)/$(WAL_DUMP_TARGET)
 
 clean:
-	rm -f $(INDEX_OBJS) $(TABLE_OBJS) $(INDEX_TARGET) $(TABLE_TARGET)
+	rm -f $(INDEX_OBJS) $(TABLE_OBJS) $(WAL_DUMP_OBJS) $(INDEX_TARGET) $(TABLE_TARGET) $(WAL_DUMP_TARGET)
 

@@ -47,11 +47,5 @@ extern int victor_table_loadwal(VictorTable *core, FILE *wal);
  */
 extern int victor_table_server(VictorTable *core, int server);
 
-/**
- * @brief Dumps all key-value pairs to stdout for debugging.
- *
- * @param core Pointer to the VictorTable database structure.
- */
-extern void victor_table_debug_dump(VictorTable *core);
 
 #endif /* __TABLE_SERVER_H */
