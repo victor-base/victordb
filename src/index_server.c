@@ -173,6 +173,8 @@ static int handle_search_message(VictorIndex *core, buffer_t *msg) {
         return -1;
     }
 
+    printf("N: %d -----------", n);
+
     result = calloc(n, sizeof(MatchResult));
     if (!result) {
         ret = buffer_write_op_result(msg, MSG_ERROR, 500, 
