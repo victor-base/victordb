@@ -56,7 +56,6 @@ install: $(INDEX_TARGET) $(TABLE_TARGET) $(WAL_DUMP_TARGET)
 	install -m 755 $(INDEX_TARGET) $(BINDIR)/
 	install -m 755 $(TABLE_TARGET) $(BINDIR)/
 	install -m 755 $(WAL_DUMP_TARGET) $(BINDIR)/
-	install -m 755 ../scripts/victor_server.py $(BINDIR)
 
 uninstall:
 	rm -f $(BINDIR)/$(INDEX_TARGET)

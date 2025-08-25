@@ -2,33 +2,10 @@
 """
 VictorDB Server Manager
 
-A Python wrapper for starting, stopping, and managing VictorDB servers.
-Provides an easy way to launch victor_index and victor_table servers
-with proper configuration and monitoring.
-
-Features:
-- Multi-database support with unique socket paths
-- Automatic log management and rotation
-- Environment variable configuration
-- Graceful shutdown handling
-- Process monitoring and health checks
-
-Environment Variables:
-- VICTOR_INDEX_BIN: Path to victor_index binary
-- VICTOR_TABLE_BIN: Path to victor_table binary
-- VICTOR_DB_ROOT: Database root directory (auto-set)
-- VICTOR_EXPORT_THRESHOLD: Export threshold (auto-set)
-
-Usage:
-    python3 victor_server.py --name mydb --index-dims 256
-    python3 victor_server.py --help
-
-Author: VictorDB Team
-License: See LICENSE file
+Core classes for managing VictorDB server processes.
 """
 
 import os
-import sys
 import time
 import signal
 import subprocess
@@ -37,42 +14,7 @@ from dataclasses import dataclass
 import logging
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
-
-
-def print_banner():
-    """Print VictorDB banner"""
-    banner = """
-╔═══════════════════════════════════════╗
-║        VictorDB Server Manager        ║
-║      High-Performance Vector DB       ║
-╚═══════════════════════════════════════╝
-"""
-    print(banner)
-
-
-def print_quick_help():
-    """Print quick help information"""
-    help_text = """
-Quick Help:
-  --name <db_name>     Database name (default: 'default')
-  --index-dims <num>   Vector dimensions (default: 128)
-  --index-only         Start only index server
-  --table-only         Start only table server
-  --help               Show full help
-
-Examples:
-  python3 victor_server.py --name mydb
-  python3 victor_server.py --index-dims 256 --name vectors
-  python3 victor_server.py --help
-
-Press Ctrl+C to stop servers
-"""
-    print(help_text)
 
 
 @dataclass
@@ -272,7 +214,7 @@ class VictorServerManager:
                 if stdout_file and hasattr(stdout_file, 'close'):
                     stdout_file.close()
                 if stderr_file and hasattr(stderr_file, 'close') and stderr_file is not subprocess.PIPE:
-                    stderr_file.close()
+                    stderr_file.close() #type: ignore
                 return False
                 
         except Exception as e:
@@ -347,7 +289,7 @@ class VictorServerManager:
                 if stdout_file and hasattr(stdout_file, 'close'):
                     stdout_file.close()
                 if stderr_file and hasattr(stderr_file, 'close') and stderr_file is not subprocess.PIPE:
-                    stderr_file.close()
+                    stderr_file.close() #type: ignore
                 return False
                 
         except Exception as e:
@@ -446,106 +388,3 @@ class VictorServerManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - cleanup"""
         self.stop_all()
-
-
-def main():
-    """Command-line interface for VictorDB server manager"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(
-        description="VictorDB Server Manager - Python wrapper for managing VictorDB servers",
-        epilog="""
-Examples:
-  # Start default database
-  python3 victor_server.py
-  
-  # Start a specific database
-  python3 victor_server.py --name myapp --db-root /data/victor
-  
-  # Start only index server with custom dimensions
-  python3 victor_server.py --index-only --index-dims 256 --name vectors
-  
-  # Start with custom configuration
-  python3 victor_server.py --name ecommerce --export-threshold 100 --index-type FLAT
-  
-For more information, visit: https://github.com/victor-base/victordb
-        """,
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument("--name", default="default", 
-                        help="Database name (used for socket names and logs)")
-    parser.add_argument("--db-root", default="/tmp/victord", 
-                        help="Database root directory where data is stored")
-    parser.add_argument("--export-threshold", type=int, default=50, 
-                        help="Export threshold for database operations")
-    parser.add_argument("--index-socket", 
-                        help="Custom index server socket path (default: /tmp/victor_{name}_index.sock)")
-    parser.add_argument("--table-socket", 
-                        help="Custom table server socket path (default: /tmp/victor_{name}_table.sock)")
-    parser.add_argument("--index-dims", type=int, default=128, 
-                        help="Vector dimensions for index server")
-    parser.add_argument("--index-type", default="HNSW", choices=["HNSW", "FLAT"], 
-                        help="Index algorithm type")
-    parser.add_argument("--index-method", default="cosine", 
-                        help="Similarity method (cosine, dotp, l2norm)")
-    parser.add_argument("--index-only", action="store_true", 
-                        help="Start only the index server")
-    parser.add_argument("--table-only", action="store_true", 
-                        help="Start only the table server")
-    parser.add_argument("--log-dir", 
-                        help="Custom log directory (default: {db_root}/{name}/logs)")
-    parser.add_argument("--no-log-files", action="store_true", 
-                        help="Disable logging to files (log to console only)")
-    parser.add_argument("--no-redirect-stdout", action="store_true", 
-                        help="Don't redirect stdout to /dev/null (useful for debugging)")
-    parser.add_argument("--debug", action="store_true", 
-                        help="Enable debug mode (dumps all keys at table server startup)")
-    
-    args = parser.parse_args()
-    
-    config = ServerConfig(
-        name=args.name,
-        db_root=args.db_root,
-        export_threshold=args.export_threshold,
-        index_socket=args.index_socket or "",  # Will be auto-generated if empty
-        table_socket=args.table_socket or "",  # Will be auto-generated if empty
-        index_dims=args.index_dims,
-        index_type=args.index_type,
-        index_method=args.index_method,
-        table_debug=args.debug,
-        log_dir=args.log_dir or "",  # Will be auto-generated if empty
-        log_to_file=not args.no_log_files,
-        redirect_stdout=not args.no_redirect_stdout
-    )
-    
-    # Handle signal for graceful shutdown
-    def signal_handler(signum, frame):
-        logger.info(f"Received signal {signum}")
-        sys.exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    # Show banner for interactive usage
-    if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] not in ['--help', '-h']):
-        print_banner()
-    
-    try:
-        with VictorServerManager(config) as manager:
-            if args.index_only:
-                if manager.start_index_server():
-                    manager.wait()
-            elif args.table_only:
-                if manager.start_table_server():
-                    manager.wait()
-            else:
-                if manager.start_all():
-                    manager.wait()
-    
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

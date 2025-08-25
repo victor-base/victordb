@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "victor-server"
+version = "1.0.0"
+description = "Python wrapper for managing VictorDB servers"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "VictorDB Team", email = "support@victordb.com"}
+]
+keywords = ["vectordb", "database", "vector", "similarity", "search", "machine-learning", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "black",
+    "flake8",
+    "mypy",
+]
+
+[project.urls]
+Homepage = "https://github.com/victor-base/victordb"
+Documentation = "https://github.com/victor-base/victordb/wiki"
+Repository = "https://github.com/victor-base/victordb"
+"Bug Reports" = "https://github.com/victor-base/victordb/issues"
+
+[tool.setuptools]
+packages = ["victor_server"]
+
+[tool.setuptools.package-data]
+victor_server = ["*.md", "*.txt"]
