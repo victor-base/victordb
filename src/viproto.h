@@ -29,6 +29,7 @@
 int buffer_write_insert(
     buffer_t *buf,
     uint64_t id,
+    uint64_t tag,
     const float *vec,
     size_t dims
 );
@@ -50,6 +51,7 @@ int buffer_write_insert(
 int buffer_read_insert(
     const buffer_t *buf,
     uint64_t *id,
+    uint64_t *tag,
     float **vec,
     size_t *dims
 );
@@ -68,6 +70,7 @@ int buffer_read_insert(
  */
 int buffer_write_search(
     buffer_t *buf,
+    uint64_t tag,
     const float *vec,
     size_t dims,
     int n
@@ -89,6 +92,7 @@ int buffer_write_search(
  */
 int buffer_read_search(
     const buffer_t *buf,
+    uint64_t *tag,
     float **vec,
     size_t *dims,
     int *n

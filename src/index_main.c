@@ -60,7 +60,13 @@ int main(int argc, char *argv[]) {
     struct sigaction sa;
     IndexConfig cfg;  // Fixed: was Config instead of IndexConfig
     VictorIndex core;
+    void *ctx = NULL;
     int server, ret;
+    HNSWContext context = {
+        .ef_construct = 240,
+        .ef_search = 240,
+        .M0 = 32
+    };
 
     if (argc == 1) {
         fprintf(stderr, "Error: Missing configuration arguments\n");
@@ -87,8 +93,11 @@ int main(int argc, char *argv[]) {
     core.op_add_counter = 0;
     core.op_del_counter = 0;
 
+    if (cfg.i_type == HNSW_INDEX)
+        ctx = &context;
+
     // Initialize vector index with specified parameters
-    ret = safe_alloc_index(&core.index, cfg.i_type, cfg.i_method, cfg.i_dims, NULL);
+    ret = safe_alloc_index(&core.index, cfg.i_type, cfg.i_method, cfg.i_dims, ctx);
     if (ret != SUCCESS) {
         log_message(LOG_ERROR, 
             "Failed to initialize vector index: %s", index_strerror(ret)

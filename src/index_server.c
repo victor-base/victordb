@@ -93,17 +93,18 @@ static int handle_delete_message(VictorIndex *core, buffer_t *msg, FILE *wal) {
 static int handle_insert_message(VictorIndex *core, buffer_t *msg, FILE *wal) {
     float32_t *vector = NULL;
     uint64_t  id;
+    uint64_t  tag;
     size_t dims = 0;
     int code;
     int ret;
 
-    ret = buffer_read_insert(msg, &id, &vector, &dims); 
+    ret = buffer_read_insert(msg, &id, &tag, &vector, &dims); 
     if (ret == -1) {
         log_message(LOG_ERROR, "parsing add message");
         return -1;
     }
 
-    if ((code = insert(core->index, id, vector, dims)) != SUCCESS) {
+    if ((code = insert(core->index, id, tag, vector, dims)) != SUCCESS) {
         if (code == SYSTEM_ERROR)
             log_message(LOG_ERROR, 
                 "at vector insert - code: %d - message: %s", 
@@ -158,22 +159,22 @@ cleanup:
  *          to the client.
  */
 static int handle_search_message(VictorIndex *core, buffer_t *msg) {
-    uint64_t *ids    = NULL;
+    uint64_t  *ids    = NULL;
     float32_t *distances = NULL;
 
     MatchResult *result  = NULL;
     float32_t *vector    = NULL;
     
+    uint64_t tag;
     size_t dims;
     int ret, n;
 
-    ret = buffer_read_search(msg, &vector, &dims, &n);
+    ret = buffer_read_search(msg, &tag, &vector, &dims, &n);
     if (ret == -1) {
         log_message(LOG_ERROR, "parsing lookup message");
         return -1;
     }
 
-    printf("N: %d -----------", n);
 
     result = calloc(n, sizeof(MatchResult));
     if (!result) {
@@ -182,7 +183,7 @@ static int handle_search_message(VictorIndex *core, buffer_t *msg) {
         goto cleanup;
     }
 
-    ret = search_n(core->index, vector, (uint16_t)dims, result, n);
+    ret = search(core->index, tag, vector, (uint16_t)dims, result, n);
     if (ret == SUCCESS) {
         int i = 0;
         if ((ids = calloc(n, sizeof(uint64_t))) == NULL || 

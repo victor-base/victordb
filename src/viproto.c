@@ -33,17 +33,18 @@
  * @param dims Number of elements in the vector.
  * @return 0 on success, -1 on error or if the message exceeds buffer size.
  */
-int buffer_write_insert(buffer_t *buf, uint64_t id, const float *vec, size_t dims) {
+int buffer_write_insert(buffer_t *buf, uint64_t id, uint64_t tag, const float *vec, size_t dims) {
     cbor_item_t *root = NULL;
     cbor_item_t *vec_arr = NULL; 
     cbor_item_t *id_item = NULL;
+    cbor_item_t *tag_item = NULL;
     size_t written;
 
     PANIC_IF(!buf, "buffer cannot be null");
     PANIC_IF(!buf->data, "buffer data cannot be null");
     PANIC_IF(!vec && dims > 0, "vector cannot be null with non-zero dimensions");
 
-    root = cbor_new_definite_array(2);
+    root = cbor_new_definite_array(3);
     if (!root) return -1;
 
     vec_arr = cbor_new_definite_array(dims);
@@ -65,6 +66,20 @@ int buffer_write_insert(buffer_t *buf, uint64_t id, const float *vec, size_t dim
         return -1;
     }
     cbor_decref(&id_item);
+
+    tag_item = cbor_build_uint64(tag);
+    if (!tag_item) {
+        cbor_decref(&vec_arr);
+        cbor_decref(&root);
+        return -1;
+    }
+    if (!cbor_array_push(root, tag_item)) {
+        cbor_decref(&tag_item);
+        cbor_decref(&vec_arr);
+        cbor_decref(&root);
+        return -1;
+    }
+    cbor_decref(&tag_item);
 
     for (size_t i = 0; i < dims; i++) {
         cbor_item_t *f = cbor_build_float4(vec[i]);
@@ -120,21 +135,23 @@ int buffer_write_insert(buffer_t *buf, uint64_t id, const float *vec, size_t dim
  * @param dims Output number of elements in the vector.
  * @return 0 on success, -1 on malformed input or memory allocation failure.
  */
-int buffer_read_insert(const buffer_t *buf, uint64_t *id, float **vec, size_t *dims) {
+int buffer_read_insert(const buffer_t *buf, uint64_t *id, uint64_t *tag, float **vec, size_t *dims) {
     struct cbor_load_result result;
     cbor_item_t *root = NULL;
-    cbor_item_t *id_item = NULL;
-    cbor_item_t *vec_arr = NULL;
+    cbor_item_t *id_item  = NULL;
+    cbor_item_t *tag_item = NULL;
+    cbor_item_t *vec_arr  = NULL;
 
     PANIC_IF(!buf, "buffer cannot be null");
     PANIC_IF(!buf->data, "buffer data cannot be null");
     PANIC_IF(!id, "id output parameter cannot be null");
+    PANIC_IF(!tag, "tag output parameter cannon be null");
     PANIC_IF(!vec, "vec output parameter cannot be null");
     PANIC_IF(!dims, "dims output parameter cannot be null");
     if (buf->hdr.len == 0 || buf->hdr.len > MSG_MAXLEN) return -1;
 
     root = cbor_load(buf->data, buf->hdr.len, &result);
-    if (!root || !cbor_isa_array(root) || cbor_array_size(root) != 2) {
+    if (!root || !cbor_isa_array(root) || cbor_array_size(root) != 3) {
         if (root) cbor_decref(&root);
         return -1;
     }
@@ -147,8 +164,16 @@ int buffer_read_insert(const buffer_t *buf, uint64_t *id, float **vec, size_t *d
     }
     *id = cbor_get_uint64(id_item);
 
+    // Extract Tag
+    tag_item = cbor_array_handle(root)[1];
+    if (!tag_item || !cbor_isa_uint(tag_item) || cbor_int_get_width(tag_item) > CBOR_INT_64) {
+        cbor_decref(&root);
+        return -1;
+    }
+    *tag = cbor_get_uint64(tag_item);
+
     // Extract vector
-    vec_arr = cbor_array_handle(root)[1];
+    vec_arr = cbor_array_handle(root)[2];
     if (!vec_arr || !cbor_isa_array(vec_arr)) {
         cbor_decref(&root);
         return -1;
@@ -207,17 +232,18 @@ int buffer_read_insert(const buffer_t *buf, uint64_t *id, float **vec, size_t *d
  * @param n Number of results requested.
  * @return 0 on success, -1 on error or insufficient buffer space.
  */
-int buffer_write_search(buffer_t *buf, const float *vec, size_t dims, int n) {
+int buffer_write_search(buffer_t *buf, uint64_t tag, const float *vec, size_t dims, int n) {
     cbor_item_t *root = NULL;
     cbor_item_t *vec_arr = NULL;
     cbor_item_t *n_item = NULL;
+    cbor_item_t *tag_item = NULL;
     size_t written;
 
     PANIC_IF(!buf, "buffer cannot be null");
     PANIC_IF(!buf->data, "buffer data cannot be null");
     PANIC_IF(!vec && dims > 0, "vector cannot be null with non-zero dimensions");
 
-    root = cbor_new_definite_array(2);
+    root = cbor_new_definite_array(3);
     if (!root) return -1;
 
     vec_arr = cbor_new_definite_array(dims);
@@ -225,6 +251,22 @@ int buffer_write_search(buffer_t *buf, const float *vec, size_t dims, int n) {
         cbor_decref(&root);
         return -1;
     }
+
+    tag_item = cbor_build_uint64(tag);
+    if (!tag_item) {
+        cbor_decref(&vec_arr);
+        cbor_decref(&root);
+        return -1;
+    }
+    if (!cbor_array_push(root, tag_item)) {
+        cbor_decref(&tag_item);
+        cbor_decref(&vec_arr);
+        cbor_decref(&root);
+        return -1;
+    }
+    cbor_decref(&tag_item);
+
+
 
     for (size_t i = 0; i < dims; i++) {
         cbor_item_t *f = cbor_build_float4(vec[i]);
@@ -287,26 +329,37 @@ int buffer_write_search(buffer_t *buf, const float *vec, size_t dims, int n) {
  * @param n Output number of results requested.
  * @return 0 on success, -1 on malformed input or memory allocation failure.
  */
-int buffer_read_search(const buffer_t *buf, float **vec, size_t *dims, int *n) {
+int buffer_read_search(const buffer_t *buf, uint64_t *tag, float **vec, size_t *dims, int *n) {
     struct cbor_load_result result;
     cbor_item_t *root = NULL;
     cbor_item_t *vec_arr = NULL;
     cbor_item_t *n_item = NULL;
+    cbor_item_t *tag_item = NULL;
 
     PANIC_IF(!buf, "buffer cannot be null");
     PANIC_IF(!buf->data, "buffer data cannot be null");
+    PANIC_IF(!tag, "tag output parameter cannot be null");
     PANIC_IF(!vec, "vec output parameter cannot be null");
     PANIC_IF(!dims, "dims output parameter cannot be null");
     PANIC_IF(!n, "n output parameter cannot be null");
     if (buf->hdr.len == 0 || buf->hdr.len > MSG_MAXLEN) return -1;
 
     root = cbor_load(buf->data, buf->hdr.len, &result);
-    if (!root || !cbor_isa_array(root) || cbor_array_size(root) != 2) {
+    if (!root || !cbor_isa_array(root) || cbor_array_size(root) != 3) {
         if (root) cbor_decref(&root);
         return -1;
     }
 
-    vec_arr = cbor_array_handle(root)[0];
+
+    // Extract Tag
+    tag_item = cbor_array_handle(root)[0];
+    if (!tag_item || !cbor_isa_uint(tag_item) || cbor_int_get_width(tag_item) > CBOR_INT_64) {
+        cbor_decref(&root);
+        return -1;
+    }
+    *tag = cbor_get_uint64(tag_item);
+
+    vec_arr = cbor_array_handle(root)[1];
     if (!vec_arr || !cbor_isa_array(vec_arr)) {
         cbor_decref(&root);
         return -1;
@@ -346,7 +399,7 @@ int buffer_read_search(const buffer_t *buf, float **vec, size_t *dims, int *n) {
         }
     }
 
-    n_item = cbor_array_handle(root)[1];
+    n_item = cbor_array_handle(root)[2];
     if (!n_item || !cbor_isa_uint(n_item)) {
         if (*vec) {
             free(*vec);
